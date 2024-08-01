@@ -1,31 +1,29 @@
-// Import necessary modules and functions from the Iced library for GUI components,
-// utilities, and types.
-use iced::highlighter;
+use iced::executor;
+use iced::highlighter::{self, Highlighter};
 use iced::keyboard;
+use iced::theme::{self, Theme};
 use iced::widget::{
     button, column, container, horizontal_space, pick_list, row, text,
     text_editor, tooltip,
 };
-use iced::{Center, Element, Fill, Font, Subscription, Task, Theme};
+use iced::{
+    Alignment, Application, Command, Element, Font, Length, Settings,
+    Subscription,
+};
 
 use std::ffi;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-// Initializes the Iced application with a name, update function, view function,
-/// subscriptions, themes, fonts, and runs the application with an initial state.
 pub fn main() -> iced::Result {
-    iced::application("Editor - Iced", Editor::update, Editor::view)
-        .subscription(Editor::subscription)
-        .theme(Editor::theme)
-        .font(include_bytes!("../fonts/icons.ttf").as_slice())
-        .default_font(Font::MONOSPACE)
-        .run_with(Editor::new)
+    Editor::run(Settings {
+        fonts: vec![include_bytes!("../fonts/icons.ttf").as_slice().into()],
+        default_font: Font::MONOSPACE,
+        ..Settings::default()
+    })
 }
 
-/// Represents the state of the editor, including the current file, content,
-/// syntax highlighting theme, loading state, and unsaved changes flag.
 struct Editor {
     file: Option<PathBuf>,
     content: text_editor::Content,
@@ -34,12 +32,9 @@ struct Editor {
     is_dirty: bool,
 }
 
-/// Defines various messages that the application can handle, such as text editor actions,
-/// theme selection, file operations, and asynchronous operation results.
-
 #[derive(Debug, Clone)]
 enum Message {
-    ActionPerformed(text_editor::Action),
+    Edit(text_editor::Action),
     ThemeSelected(highlighter::Theme),
     NewFile,
     OpenFile,
@@ -48,9 +43,13 @@ enum Message {
     FileSaved(Result<PathBuf, Error>),
 }
 
-impl Editor {
-    /// Creates a new instance of `Editor` and initiates loading the default file asynchronously.
-    fn new() -> (Self, Task<Message>) {
+impl Application for Editor {
+    type Message = Message;
+    type Theme = Theme;
+    type Executor = executor::Default;
+    type Flags = ();
+
+    fn new(_flags: Self::Flags) -> (Self, Command<Message>) {
         (
             Self {
                 file: None,
@@ -59,31 +58,27 @@ impl Editor {
                 is_loading: true,
                 is_dirty: false,
             },
-            Task::perform(
-                load_file(format!(
-                    "{}/src/main.rs",
-                    env!("CARGO_MANIFEST_DIR")
-                )),
-                Message::FileOpened,
-            ),
+            Command::perform(load_file(default_file()), Message::FileOpened),
         )
     }
 
-    /// Handles incoming messages to update the application state, processing actions
-    /// like text editor commands, theme selection, and file operations.
-    fn update(&mut self, message: Message) -> Task<Message> {
+    fn title(&self) -> String {
+        String::from("Editor - Iced")
+    }
+
+    fn update(&mut self, message: Message) -> Command<Message> {
         match message {
-            Message::ActionPerformed(action) => {
+            Message::Edit(action) => {
                 self.is_dirty = self.is_dirty || action.is_edit();
 
-                self.content.perform(action);
+                self.content.edit(action);
 
-                Task::none()
+                Command::none()
             }
             Message::ThemeSelected(theme) => {
                 self.theme = theme;
 
-                Task::none()
+                Command::none()
             }
             Message::NewFile => {
                 if !self.is_loading {
@@ -91,15 +86,15 @@ impl Editor {
                     self.content = text_editor::Content::new();
                 }
 
-                Task::none()
+                Command::none()
             }
             Message::OpenFile => {
                 if self.is_loading {
-                    Task::none()
+                    Command::none()
                 } else {
                     self.is_loading = true;
 
-                    Task::perform(open_file(), Message::FileOpened)
+                    Command::perform(open_file(), Message::FileOpened)
                 }
             }
             Message::FileOpened(result) => {
@@ -108,18 +103,18 @@ impl Editor {
 
                 if let Ok((path, contents)) = result {
                     self.file = Some(path);
-                    self.content = text_editor::Content::with_text(&contents);
+                    self.content = text_editor::Content::with(&contents);
                 }
 
-                Task::none()
+                Command::none()
             }
             Message::SaveFile => {
                 if self.is_loading {
-                    Task::none()
+                    Command::none()
                 } else {
                     self.is_loading = true;
 
-                    Task::perform(
+                    Command::perform(
                         save_file(self.file.clone(), self.content.text()),
                         Message::FileSaved,
                     )
@@ -133,23 +128,20 @@ impl Editor {
                     self.is_dirty = false;
                 }
 
-                Task::none()
+                Command::none()
             }
         }
     }
-/// Defines keyboard shortcuts for the application, such as saving the file with Cmd+S.
 
     fn subscription(&self) -> Subscription<Message> {
-        keyboard::on_key_press(|key, modifiers| match key.as_ref() {
-            keyboard::Key::Character("s") if modifiers.command() => {
+        keyboard::on_key_press(|key_code, modifiers| match key_code {
+            keyboard::KeyCode::S if modifiers.command() => {
                 Some(Message::SaveFile)
             }
             _ => None,
         })
     }
 
-/// Renders the UI based on the current state, including controls for file operations,
-/// theme selection, text editor display, and status indicators.
     fn view(&self) -> Element<Message> {
         let controls = row![
             action(new_icon(), "New file", Some(Message::NewFile)),
@@ -163,7 +155,7 @@ impl Editor {
                 "Save file",
                 self.is_dirty.then_some(Message::SaveFile)
             ),
-            horizontal_space(),
+            horizontal_space(Length::Fill),
             pick_list(
                 highlighter::Theme::ALL,
                 Some(self.theme),
@@ -173,7 +165,7 @@ impl Editor {
             .padding([5, 10])
         ]
         .spacing(10)
-        .align_y(Center);
+        .align_items(Alignment::Center);
 
         let status = row![
             text(if let Some(path) = &self.file {
@@ -187,7 +179,7 @@ impl Editor {
             } else {
                 String::from("New file")
             }),
-            horizontal_space(),
+            horizontal_space(Length::Fill),
             text({
                 let (line, column) = self.content.cursor_position();
 
@@ -199,15 +191,19 @@ impl Editor {
         column![
             controls,
             text_editor(&self.content)
-                .height(Fill)
-                .on_action(Message::ActionPerformed)
-                .highlight(
-                    self.file
-                        .as_deref()
-                        .and_then(Path::extension)
-                        .and_then(ffi::OsStr::to_str)
-                        .unwrap_or("rs"),
-                    self.theme,
+                .on_edit(Message::Edit)
+                .highlight::<Highlighter>(
+                    highlighter::Settings {
+                        theme: self.theme,
+                        extension: self
+                            .file
+                            .as_deref()
+                            .and_then(Path::extension)
+                            .and_then(ffi::OsStr::to_str)
+                            .map(str::to_string)
+                            .unwrap_or(String::from("rs")),
+                    },
+                    |highlight, _theme| highlight.to_format()
                 ),
             status,
         ]
@@ -218,9 +214,9 @@ impl Editor {
 
     fn theme(&self) -> Theme {
         if self.theme.is_dark() {
-            Theme::GruvboxDark
+            Theme::Dark
         } else {
-            Theme::GruvboxLight
+            Theme::Light
         }
     }
 }
@@ -231,7 +227,9 @@ pub enum Error {
     IoError(io::ErrorKind),
 }
 
-// Asynchronous function to open a file using a dialog and load its contents.
+fn default_file() -> PathBuf {
+    PathBuf::from(format!("{}/src/main.rs", env!("CARGO_MANIFEST_DIR")))
+}
 
 async fn open_file() -> Result<(PathBuf, Arc<String>), Error> {
     let picked_file = rfd::AsyncFileDialog::new()
@@ -240,16 +238,10 @@ async fn open_file() -> Result<(PathBuf, Arc<String>), Error> {
         .await
         .ok_or(Error::DialogClosed)?;
 
-    load_file(picked_file).await
+    load_file(picked_file.path().to_owned()).await
 }
 
-// Asynchronous function to load a file's contents into memory.
-
-async fn load_file(
-    path: impl Into<PathBuf>,
-) -> Result<(PathBuf, Arc<String>), Error> {
-    let path = path.into();
-
+async fn load_file(path: PathBuf) -> Result<(PathBuf, Arc<String>), Error> {
     let contents = tokio::fs::read_to_string(&path)
         .await
         .map(Arc::new)
@@ -257,8 +249,6 @@ async fn load_file(
 
     Ok((path, contents))
 }
-
-// Asynchronous function to save the current document's contents to a file.
 
 async fn save_file(
     path: Option<PathBuf>,
@@ -282,14 +272,13 @@ async fn save_file(
 
     Ok(path)
 }
-// Utility function to create a button with an icon and tooltip for various actions.
 
 fn action<'a, Message: Clone + 'a>(
     content: impl Into<Element<'a, Message>>,
     label: &'a str,
     on_press: Option<Message>,
 ) -> Element<'a, Message> {
-    let action = button(container(content).center_x(30));
+    let action = button(container(content).width(30).center_x());
 
     if let Some(on_press) = on_press {
         tooltip(
@@ -297,13 +286,12 @@ fn action<'a, Message: Clone + 'a>(
             label,
             tooltip::Position::FollowCursor,
         )
-        .style(container::rounded_box)
+        .style(theme::Container::Box)
         .into()
     } else {
-        action.style(button::secondary).into()
+        action.style(theme::Button::Secondary).into()
     }
 }
-// Utility functions to generate icons for new, save, and open actions.
 
 fn new_icon<'a, Message>() -> Element<'a, Message> {
     icon('\u{0e800}')
@@ -316,7 +304,7 @@ fn save_icon<'a, Message>() -> Element<'a, Message> {
 fn open_icon<'a, Message>() -> Element<'a, Message> {
     icon('\u{0f115}')
 }
-// Utility function to render an icon character with a specified font.
+
 fn icon<'a, Message>(codepoint: char) -> Element<'a, Message> {
     const ICON_FONT: Font = Font::with_name("editor-icons");
 
