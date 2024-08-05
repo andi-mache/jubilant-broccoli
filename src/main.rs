@@ -4,12 +4,14 @@ use iced::keyboard;
 use iced::theme::{self, Theme};
 use iced::widget::{
     button, column, container, horizontal_space, pick_list, row, text,
-    text_editor, tooltip,
+    text_editor, tooltip,/* toggler */ Button, Column, Text , Scrollable
 };
 use iced::{
     Alignment, Application, Command, Element, Font, Length, Settings,
     Subscription,
 };
+use iced_aw::{helpers::card, style};
+use iced_aw::style::CardStyles;
 
 use std::ffi;
 use std::io;
@@ -27,21 +29,36 @@ pub fn main() -> iced::Result {
 struct Editor {
     file: Option<PathBuf>,
     content: text_editor::Content,
-    theme: highlighter::Theme,
+    //app_theme: Theme,
+    highlighter_theme: highlighter::Theme,
     is_loading: bool,
     is_dirty: bool,
+    card_open: bool,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
-    Edit(text_editor::Action),
+    ActionPerformed(text_editor::Action),
+   // AppThemeChanged(Theme),
     ThemeSelected(highlighter::Theme),
     NewFile,
     OpenFile,
     FileOpened(Result<(PathBuf, Arc<String>), Error>),
     SaveFile,
     FileSaved(Result<PathBuf, Error>),
+    CloseCard,
+    OpenCard,
+    #[allow(dead_code)]
+    Loaded(Result<(), String>),
+    FontLoaded(Result<(), font::Error>),
 }
+
+#[derive(Debug)]
+enum CardExample {
+    Loading,
+    Loaded(State),
+}
+
 
 impl Application for Editor {
     type Message = Message;
@@ -54,9 +71,11 @@ impl Application for Editor {
             Self {
                 file: None,
                 content: text_editor::Content::new(),
-                theme: highlighter::Theme::SolarizedDark,
+                //app_theme: Theme::GruvboxDark,
+                highlighter_theme: highlighter::Theme::SolarizedDark,
                 is_loading: true,
                 is_dirty: false,
+                card_open: false,
             },
             Command::perform(load_file(default_file()), Message::FileOpened),
         )
@@ -68,15 +87,43 @@ impl Application for Editor {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
-            Message::Edit(action) => {
+          /*  Message::AppThemeChanged(theme) => {
+                self.app_theme = theme;
+
+                Command::none()
+
+            }*/ 
+
+
+
+            CardExample::Loading => {
+                if let Message::Loaded(_) = message {
+                    *self = CardExample::Loaded(State { card_open: false })
+                }
+            }
+            CardExample::Loaded(State { card_open }) => match message {
+                Message::CloseCard | Message::OpenCard => {
+                    *card_open = !*card_open;
+                }
+                _ => {}
+            },
+
+
+
+            Message::CloseCard | Message::OpenCard =>{
+                self.card_open = !self.card_open;
+
+                Command::none()
+            }
+            Message::ActionPerformed(action) => {
                 self.is_dirty = self.is_dirty || action.is_edit();
 
-                self.content.edit(action);
+                self.content.perform(action);
 
                 Command::none()
             }
             Message::ThemeSelected(theme) => {
-                self.theme = theme;
+                self.highlighter_theme = theme;
 
                 Command::none()
             }
@@ -103,7 +150,7 @@ impl Application for Editor {
 
                 if let Ok((path, contents)) = result {
                     self.file = Some(path);
-                    self.content = text_editor::Content::with(&contents);
+                    self.content = text_editor::Content::with_text(&contents);
                 }
 
                 Command::none()
@@ -134,8 +181,8 @@ impl Application for Editor {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        keyboard::on_key_press(|key_code, modifiers| match key_code {
-            keyboard::KeyCode::S if modifiers.command() => {
+        keyboard::on_key_press(|key, modifiers| match key.as_ref() {
+            keyboard::Key::Character("s") if modifiers.command() => {
                 Some(Message::SaveFile)
             }
             _ => None,
@@ -143,6 +190,30 @@ impl Application for Editor {
     }
 
     fn view(&self) -> Element<Message> {
+
+       // let themechanger = toggler();
+
+       CardExample::Loaded(State { card_open }) => {
+        let element: Element<Message> = if *card_open {
+                card(
+                    Text::new("Head X"),
+                    Column::new()
+                        .push(Text::new("Zombie ipsum reversus ab viral inferno, nam rick grimes malum cerebro. De carne lumbering animata corpora quaeritis. Summus brains sit, morbo vel maleficia? De apocalypsi gorger omero undead survivor dictum mauris. Hi mindless mortuis soulless creaturas, imo evil stalking monstra adventus resi dentevil vultus comedat cerebella viventium. Qui animated corpse, cricket bat max brucks terribilem incessu zomby. The voodoo sacerdos flesh eater, suscitat mortuos comedere carnem virus. Zonbi tattered for solum oculi eorum defunctis go lum cerebro. Nescio brains an Undead zombies. Sicut malus putrid voodoo horror. Nigh tofth eliv ingdead."))
+                )
+                .foot(Text::new("Foot"))
+                .style(CardStyles::Primary)
+                .on_close(Message::CloseCard)
+                .into()
+            } else {
+                Button::new(Text::new("Open card"))
+                    .on_press(Message::OpenCard)
+                    .into()
+            };
+        }
+
+        let content = Scrollable::new(element);
+
+
         let controls = row![
             action(new_icon(), "New file", Some(Message::NewFile)),
             action(
@@ -155,10 +226,11 @@ impl Application for Editor {
                 "Save file",
                 self.is_dirty.then_some(Message::SaveFile)
             ),
-            horizontal_space(Length::Fill),
+            horizontal_space(),
+            content,
             pick_list(
                 highlighter::Theme::ALL,
-                Some(self.theme),
+                Some(self.highlighter_theme),
                 Message::ThemeSelected
             )
             .text_size(14)
@@ -179,7 +251,7 @@ impl Application for Editor {
             } else {
                 String::from("New file")
             }),
-            horizontal_space(Length::Fill),
+            horizontal_space(),
             text({
                 let (line, column) = self.content.cursor_position();
 
@@ -191,10 +263,11 @@ impl Application for Editor {
         column![
             controls,
             text_editor(&self.content)
-                .on_edit(Message::Edit)
+                .height(Length::Fill)
+                .on_action(Message::ActionPerformed)
                 .highlight::<Highlighter>(
                     highlighter::Settings {
-                        theme: self.theme,
+                        theme: self.highlighter_theme,
                         extension: self
                             .file
                             .as_deref()
@@ -213,10 +286,10 @@ impl Application for Editor {
     }
 
     fn theme(&self) -> Theme {
-        if self.theme.is_dark() {
-            Theme::Dark
+        if self.highlighter_theme.is_dark() {
+            Theme::GruvboxDark
         } else {
-            Theme::Light
+            Theme::GruvboxLight
         }
     }
 }
