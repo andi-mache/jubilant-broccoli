@@ -1,19 +1,20 @@
-use iced::executor;
+use iced::{executor, font, Element, Length};
 use iced::highlighter::{self, Highlighter};
 use iced::keyboard;
 use iced::theme::{self, Theme};
 use iced::widget::{
-    button, column, container, horizontal_space, pick_list, row, text,
-    text_editor, tooltip,/* toggler */ Button, Column, Text , Scrollable
+    button, column, container, horizontal_space, pick_list, row, text, text_editor, tooltip, Button, Column, Scrollable, Text
 };
 use iced::{
-    Alignment, Application, Command, Element, Font, Length, Settings,
+    Alignment, Font,
     Subscription,
 };
-use iced_aw::{helpers::card, style};
-use iced_aw::style::CardStyles;
+use iced_aw::{helpers::card, style::CardStyles};
+use iced::{
+    Application, Command, Settings,
+};
 
-use std::ffi;
+// use std::ffi;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -29,17 +30,15 @@ pub fn main() -> iced::Result {
 struct Editor {
     file: Option<PathBuf>,
     content: text_editor::Content,
-    //app_theme: Theme,
     highlighter_theme: highlighter::Theme,
     is_loading: bool,
     is_dirty: bool,
-    card_open: bool,
+    card_opened: bool,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
     ActionPerformed(text_editor::Action),
-   // AppThemeChanged(Theme),
     ThemeSelected(highlighter::Theme),
     NewFile,
     OpenFile,
@@ -48,17 +47,15 @@ enum Message {
     FileSaved(Result<PathBuf, Error>),
     CloseCard,
     OpenCard,
-    #[allow(dead_code)]
-    Loaded(Result<(), String>),
-    FontLoaded(Result<(), font::Error>),
+   // #[allow(dead_code)]
+   // Loaded(Result<(), String>),
+   // FontLoaded(Result<(), font::Error>),
+
 }
 
-#[derive(Debug)]
-enum CardExample {
-    Loading,
-    Loaded(State),
+async fn load() -> Result<(), String> {
+    Ok(())
 }
-
 
 impl Application for Editor {
     type Message = Message;
@@ -71,14 +68,17 @@ impl Application for Editor {
             Self {
                 file: None,
                 content: text_editor::Content::new(),
-                //app_theme: Theme::GruvboxDark,
                 highlighter_theme: highlighter::Theme::SolarizedDark,
                 is_loading: true,
                 is_dirty: false,
-                card_open: false,
+                card_opened: false,
+
             },
-            Command::perform(load_file(default_file()), Message::FileOpened),
-        )
+
+            Command::batch(vec![
+                Command::perform(load_file(default_file()), Message::FileOpened),
+                ])
+         )
     }
 
     fn title(&self) -> String {
@@ -87,34 +87,13 @@ impl Application for Editor {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
-          /*  Message::AppThemeChanged(theme) => {
-                self.app_theme = theme;
-
-                Command::none()
-
-            }*/ 
-
-
-
-            CardExample::Loading => {
-                if let Message::Loaded(_) = message {
-                    *self = CardExample::Loaded(State { card_open: false })
-                }
-            }
-            CardExample::Loaded(State { card_open }) => match message {
-                Message::CloseCard | Message::OpenCard => {
-                    *card_open = !*card_open;
-                }
-                _ => {}
-            },
-
-
 
             Message::CloseCard | Message::OpenCard =>{
-                self.card_open = !self.card_open;
+                self.card_opened = !self.card_opened;
 
                 Command::none()
             }
+
             Message::ActionPerformed(action) => {
                 self.is_dirty = self.is_dirty || action.is_edit();
 
@@ -177,6 +156,7 @@ impl Application for Editor {
 
                 Command::none()
             }
+
         }
     }
 
@@ -191,27 +171,23 @@ impl Application for Editor {
 
     fn view(&self) -> Element<Message> {
 
-       // let themechanger = toggler();
+        let about: Element<Message> = if self.card_opened {
+            card(
+                Text::new("Head X"),
+                Column::new()
+                    .push(Text::new("Zombie ipsum reversus ab viral inferno, nam rick grimes malum cerebro. De carne lumbering animata corpora quaeritis. Summus brains sit, morbo vel maleficia? De apocalypsi gorger omero undead survivor dictum mauris. Hi mindless mortuis soulless creaturas, imo evil stalking monstra adventus resi dentevil vultus comedat cerebella viventium. Qui animated corpse, cricket bat max brucks terribilem incessu zomby. The voodoo sacerdos flesh eater, suscitat mortuos comedere carnem virus. Zonbi tattered for solum oculi eorum defunctis go lum cerebro. Nescio brains an Undead zombies. Sicut malus putrid voodoo horror. Nigh tofth eliv ingdead."))
+            )
+            .foot(Text::new("Foot"))
+            .style(CardStyles::Primary)
+            .on_close(Message::CloseCard)
+            .into()
+        } else {
+            Button::new(Text::new("Open card"))
+                        .on_press(Message::OpenCard)
+                        .into()
+        };
 
-       CardExample::Loaded(State { card_open }) => {
-        let element: Element<Message> = if *card_open {
-                card(
-                    Text::new("Head X"),
-                    Column::new()
-                        .push(Text::new("Zombie ipsum reversus ab viral inferno, nam rick grimes malum cerebro. De carne lumbering animata corpora quaeritis. Summus brains sit, morbo vel maleficia? De apocalypsi gorger omero undead survivor dictum mauris. Hi mindless mortuis soulless creaturas, imo evil stalking monstra adventus resi dentevil vultus comedat cerebella viventium. Qui animated corpse, cricket bat max brucks terribilem incessu zomby. The voodoo sacerdos flesh eater, suscitat mortuos comedere carnem virus. Zonbi tattered for solum oculi eorum defunctis go lum cerebro. Nescio brains an Undead zombies. Sicut malus putrid voodoo horror. Nigh tofth eliv ingdead."))
-                )
-                .foot(Text::new("Foot"))
-                .style(CardStyles::Primary)
-                .on_close(Message::CloseCard)
-                .into()
-            } else {
-                Button::new(Text::new("Open card"))
-                    .on_press(Message::OpenCard)
-                    .into()
-            };
-        }
-
-        let content = Scrollable::new(element);
+        let content = Scrollable::new(about);
 
 
         let controls = row![
@@ -272,7 +248,7 @@ impl Application for Editor {
                             .file
                             .as_deref()
                             .and_then(Path::extension)
-                            .and_then(ffi::OsStr::to_str)
+                            .and_then(std::ffi::OsStr::to_str)
                             .map(str::to_string)
                             .unwrap_or(String::from("rs")),
                     },
