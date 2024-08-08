@@ -1,4 +1,4 @@
-use iced::{executor, font, Element, Length};
+use iced::{executor, font, window, Element, Length};
 use iced::highlighter::{self, Highlighter};
 use iced::keyboard;
 use iced::theme::{self, Theme};
@@ -23,6 +23,12 @@ pub fn main() -> iced::Result {
     Editor::run(Settings {
         fonts: vec![include_bytes!("../fonts/icons.ttf").as_slice().into()],
         default_font: Font::MONOSPACE,
+        window: window::Settings {
+            size: iced::Size::new(800.0, 700.0), 
+            resizable: (true),
+            ..window::Settings::default()
+
+        },
         ..Settings::default()
     })
 }
@@ -31,6 +37,7 @@ struct Editor {
     file: Option<PathBuf>,
     content: text_editor::Content,
     highlighter_theme: highlighter::Theme,
+    sys_theme: Theme,
     is_loading: bool,
     is_dirty: bool,
     card_opened: bool,
@@ -40,6 +47,7 @@ struct Editor {
 enum Message {
     ActionPerformed(text_editor::Action),
     ThemeSelected(highlighter::Theme),
+    SysThemeSelected(Theme),
     NewFile,
     OpenFile,
     FileOpened(Result<(PathBuf, Arc<String>), Error>),
@@ -53,9 +61,6 @@ enum Message {
 
 }
 
-async fn load() -> Result<(), String> {
-    Ok(())
-}
 
 impl Application for Editor {
     type Message = Message;
@@ -68,7 +73,8 @@ impl Application for Editor {
             Self {
                 file: None,
                 content: text_editor::Content::new(),
-                highlighter_theme: highlighter::Theme::SolarizedDark,
+                highlighter_theme: highlighter::Theme::Base16Mocha,
+                sys_theme: iced::Theme::KanagawaDragon,
                 is_loading: true,
                 is_dirty: false,
                 card_opened: false,
@@ -103,6 +109,11 @@ impl Application for Editor {
             }
             Message::ThemeSelected(theme) => {
                 self.highlighter_theme = theme;
+
+                Command::none()
+            }
+            Message::SysThemeSelected(theme) => {
+                self.sys_theme = theme;
 
                 Command::none()
             }
@@ -203,6 +214,13 @@ impl Application for Editor {
                 self.is_dirty.then_some(Message::SaveFile)
             ),
             horizontal_space(),
+            pick_list(
+                iced::Theme::ALL,
+                Some(&self.sys_theme),
+                Message::SysThemeSelected
+            )
+            .text_size(14)
+            .padding([5, 10]),
             content,
             pick_list(
                 highlighter::Theme::ALL,
@@ -263,11 +281,11 @@ impl Application for Editor {
 
     fn theme(&self) -> Theme {
         if self.highlighter_theme.is_dark() {
-            Theme::GruvboxDark
+            self.sys_theme.clone()
         } else {
             Theme::GruvboxLight
         }
-    }
+    }  
 }
 
 #[derive(Debug, Clone)]
