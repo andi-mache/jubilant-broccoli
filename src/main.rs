@@ -1,47 +1,76 @@
-use iced::executor;
+use iced::{executor, widget, window, Element, Length};
 use iced::highlighter::{self, Highlighter};
 use iced::keyboard;
 use iced::theme::{self, Theme};
 use iced::widget::{
-    button, column, container, horizontal_space, pick_list, row, text,
-    text_editor, tooltip,
+    button, column, container, horizontal_space, pick_list, row, text, text_editor, tooltip,
+    Button, Column, Scrollable, Text
 };
 use iced::{
-    Alignment, Application, Command, Element, Font, Length, Settings,
+    Alignment, Font,
     Subscription,
 };
+use iced::{
+    Application, Command, Settings,
+};
 
-use std::ffi;
+
+mod modal;
+
+// use std::ffi;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+
+
 
 pub fn main() -> iced::Result {
     Editor::run(Settings {
         fonts: vec![include_bytes!("../fonts/icons.ttf").as_slice().into()],
         default_font: Font::MONOSPACE,
+        window: window::Settings {
+            size: iced::Size::new(800.0, 700.0), 
+            resizable: (true),
+            ..window::Settings::default()
+
+        },
         ..Settings::default()
     })
 }
 
-struct Editor {
-    file: Option<PathBuf>,
-    content: text_editor::Content,
-    theme: highlighter::Theme,
-    is_loading: bool,
-    is_dirty: bool,
-}
 
 #[derive(Debug, Clone)]
 enum Message {
-    Edit(text_editor::Action),
+    ActionPerformed(text_editor::Action),
     ThemeSelected(highlighter::Theme),
+    SysThemeSelected(Theme),
     NewFile,
     OpenFile,
     FileOpened(Result<(PathBuf, Arc<String>), Error>),
     SaveFile,
     FileSaved(Result<PathBuf, Error>),
+    CloseCard,
+    OpenCard,
+    ShowModal,
+    HideModal,
 }
+struct Editor {
+    file: Option<PathBuf>,
+    content: text_editor::Content,
+    highlighter_theme: highlighter::Theme,
+    sys_theme: Theme,
+    is_loading: bool,
+    is_dirty: bool,
+    state: State,
+    show_modal: bool,
+}
+
+#[derive(Debug, Clone)]
+struct State {
+    card_open: bool,
+}
+
 
 impl Application for Editor {
     type Message = Message;
@@ -54,12 +83,19 @@ impl Application for Editor {
             Self {
                 file: None,
                 content: text_editor::Content::new(),
-                theme: highlighter::Theme::SolarizedDark,
+                highlighter_theme: highlighter::Theme::Base16Mocha,
+                sys_theme: iced::Theme::KanagawaDragon,
                 is_loading: true,
                 is_dirty: false,
+                state: State{ card_open: false },
+                show_modal: true,
+
             },
-            Command::perform(load_file(default_file()), Message::FileOpened),
-        )
+
+            Command::batch(vec![
+                Command::perform(load_file(default_file()), Message::FileOpened),
+                ])
+         )
     }
 
     fn title(&self) -> String {
@@ -68,15 +104,36 @@ impl Application for Editor {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
-            Message::Edit(action) => {
+            Message::ShowModal => {
+                self.show_modal = true;
+                widget::focus_next()
+            }
+            Message::HideModal => {
+                self.hide_modal();
+                Command::none()
+            }
+
+            Message::CloseCard | Message::OpenCard =>{
+                self.state.card_open = !self.state.card_open;
+               // self.card_opened = !self.card_opened;
+
+                Command::none()
+            }
+
+            Message::ActionPerformed(action) => {
                 self.is_dirty = self.is_dirty || action.is_edit();
 
-                self.content.edit(action);
+                self.content.perform(action);
 
                 Command::none()
             }
             Message::ThemeSelected(theme) => {
-                self.theme = theme;
+                self.highlighter_theme = theme;
+
+                Command::none()
+            }
+            Message::SysThemeSelected(theme) => {
+                self.sys_theme = theme;
 
                 Command::none()
             }
@@ -103,7 +160,7 @@ impl Application for Editor {
 
                 if let Ok((path, contents)) = result {
                     self.file = Some(path);
-                    self.content = text_editor::Content::with(&contents);
+                    self.content = text_editor::Content::with_text(&contents);
                 }
 
                 Command::none()
@@ -130,12 +187,13 @@ impl Application for Editor {
 
                 Command::none()
             }
+
         }
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        keyboard::on_key_press(|key_code, modifiers| match key_code {
-            keyboard::KeyCode::S if modifiers.command() => {
+        keyboard::on_key_press(|key, modifiers| match key.as_ref() {
+            keyboard::Key::Character("s") if modifiers.command() => {
                 Some(Message::SaveFile)
             }
             _ => None,
@@ -143,6 +201,7 @@ impl Application for Editor {
     }
 
     fn view(&self) -> Element<Message> {
+
         let controls = row![
             action(new_icon(), "New file", Some(Message::NewFile)),
             action(
@@ -155,19 +214,27 @@ impl Application for Editor {
                 "Save file",
                 self.is_dirty.then_some(Message::SaveFile)
             ),
-            horizontal_space(Length::Fill),
+            horizontal_space(),
+            button(text("Show Modal")).on_press(Message::ShowModal),
+            pick_list(
+                iced::Theme::ALL,
+                Some(&self.sys_theme),
+                Message::SysThemeSelected
+            )
+            .text_size(14)
+            .padding([5, 10]),
             pick_list(
                 highlighter::Theme::ALL,
-                Some(self.theme),
+                Some(self.highlighter_theme),
                 Message::ThemeSelected
             )
             .text_size(14)
-            .padding([5, 10])
+            .padding([5, 10]),
         ]
         .spacing(10)
         .align_items(Alignment::Center);
-
-        let status = row![
+        
+    let status = row![
             text(if let Some(path) = &self.file {
                 let path = path.display().to_string();
 
@@ -179,7 +246,7 @@ impl Application for Editor {
             } else {
                 String::from("New file")
             }),
-            horizontal_space(Length::Fill),
+            horizontal_space(),
             text({
                 let (line, column) = self.content.cursor_position();
 
@@ -188,36 +255,64 @@ impl Application for Editor {
         ]
         .spacing(10);
 
-        column![
-            controls,
-            text_editor(&self.content)
-                .on_edit(Message::Edit)
+        let mwili =             text_editor(&self.content)
+                .height(Length::Fill)
+                .on_action(Message::ActionPerformed)
                 .highlight::<Highlighter>(
                     highlighter::Settings {
-                        theme: self.theme,
+                        theme: self.highlighter_theme,
                         extension: self
                             .file
                             .as_deref()
                             .and_then(Path::extension)
-                            .and_then(ffi::OsStr::to_str)
+                            .and_then(std::ffi::OsStr::to_str)
                             .map(str::to_string)
                             .unwrap_or(String::from("rs")),
                     },
                     |highlight, _theme| highlight.to_format()
-                ),
+                );
+        
+let full =         column![
+            controls,
+            mwili,
             status,
         ]
         .spacing(10)
-        .padding(10)
-        .into()
+        .padding(10);
+
+let content = container(
+full,
+);
+
+        if self.show_modal {
+            let modal = container(
+                text("bonjour mon aime")
+            )
+            .width(300)
+            .padding(10)
+            .style(theme::Container::Box);
+
+            modal::modal::Modal::new(content, modal)
+                .on_blur(Message::HideModal)
+                .into()
+        } else {
+            content.into()
+        }
+    
     }
 
     fn theme(&self) -> Theme {
-        if self.theme.is_dark() {
-            Theme::Dark
+        if self.highlighter_theme.is_dark() {
+            self.sys_theme.clone()
         } else {
-            Theme::Light
+            Theme::GruvboxLight
         }
+    }  
+}
+
+impl Editor {
+    fn hide_modal(&mut self) {
+        self.show_modal = false;
     }
 }
 
@@ -289,7 +384,7 @@ fn action<'a, Message: Clone + 'a>(
         .style(theme::Container::Box)
         .into()
     } else {
-        action.style(theme::Button::Secondary).into()
+        action.style(theme::Button::Destructive).into()
     }
 }
 
