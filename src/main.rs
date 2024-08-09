@@ -233,8 +233,8 @@ impl Application for Editor {
         ]
         .spacing(10)
         .align_items(Alignment::Center);
-
-        let status = row![
+        
+    let status = row![
             text(if let Some(path) = &self.file {
                 let path = path.display().to_string();
 
@@ -255,24 +255,7 @@ impl Application for Editor {
         ]
         .spacing(10);
 
-        if self.show_modal {
-            let modal = container(
-                column![
-                    text("Hola como estas")
-                ]
-            )
-            .width(300)
-            .padding(10)
-            .style(theme::Container::Box);
-
-             let about = modal::modal::Modal::new(controls, modal)
-                .on_blur(Message::HideModal);
-             about.into()
-        } else {        
-
-        column![
-            controls,
-            text_editor(&self.content)
+        let mwili =             text_editor(&self.content)
                 .height(Length::Fill)
                 .on_action(Message::ActionPerformed)
                 .highlight::<Highlighter>(
@@ -287,13 +270,35 @@ impl Application for Editor {
                             .unwrap_or(String::from("rs")),
                     },
                     |highlight, _theme| highlight.to_format()
-                ),
+                );
+        
+let full =         column![
+            controls,
+            mwili,
             status,
         ]
         .spacing(10)
-        .padding(10)
-        .into()
+        .padding(10);
+
+let content = container(
+full,
+);
+
+        if self.show_modal {
+            let modal = container(
+                text("bonjour mon aime")
+            )
+            .width(300)
+            .padding(10)
+            .style(theme::Container::Box);
+
+            modal::modal::Modal::new(content, modal)
+                .on_blur(Message::HideModal)
+                .into()
+        } else {
+            content.into()
         }
+    
     }
 
     fn theme(&self) -> Theme {
