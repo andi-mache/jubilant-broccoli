@@ -1,23 +1,29 @@
-use iced::{executor, font, window, Element, Length};
+use iced::{executor, widget, window, Element, Length};
 use iced::highlighter::{self, Highlighter};
 use iced::keyboard;
 use iced::theme::{self, Theme};
 use iced::widget::{
-    button, column, container, horizontal_space, pick_list, row, text, text_editor, tooltip, Button, Column, Scrollable, Text
+    button, column, container, horizontal_space, pick_list, row, text, text_editor, tooltip,
+    Button, Column, Scrollable, Text
 };
 use iced::{
     Alignment, Font,
     Subscription,
 };
-use iced_aw::{helpers::card, style::CardStyles};
 use iced::{
     Application, Command, Settings,
 };
+
+
+mod modal;
 
 // use std::ffi;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+
+
 
 pub fn main() -> iced::Result {
     Editor::run(Settings {
@@ -33,15 +39,6 @@ pub fn main() -> iced::Result {
     })
 }
 
-struct Editor {
-    file: Option<PathBuf>,
-    content: text_editor::Content,
-    highlighter_theme: highlighter::Theme,
-    sys_theme: Theme,
-    is_loading: bool,
-    is_dirty: bool,
-    card_opened: bool,
-}
 
 #[derive(Debug, Clone)]
 enum Message {
@@ -55,10 +52,23 @@ enum Message {
     FileSaved(Result<PathBuf, Error>),
     CloseCard,
     OpenCard,
-   // #[allow(dead_code)]
-   // Loaded(Result<(), String>),
-   // FontLoaded(Result<(), font::Error>),
+    ShowModal,
+    HideModal,
+}
+struct Editor {
+    file: Option<PathBuf>,
+    content: text_editor::Content,
+    highlighter_theme: highlighter::Theme,
+    sys_theme: Theme,
+    is_loading: bool,
+    is_dirty: bool,
+    state: State,
+    show_modal: bool,
+}
 
+#[derive(Debug, Clone)]
+struct State {
+    card_open: bool,
 }
 
 
@@ -77,7 +87,8 @@ impl Application for Editor {
                 sys_theme: iced::Theme::KanagawaDragon,
                 is_loading: true,
                 is_dirty: false,
-                card_opened: false,
+                state: State{ card_open: false },
+                show_modal: true,
 
             },
 
@@ -93,9 +104,18 @@ impl Application for Editor {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
+            Message::ShowModal => {
+                self.show_modal = true;
+                widget::focus_next()
+            }
+            Message::HideModal => {
+                self.hide_modal();
+                Command::none()
+            }
 
             Message::CloseCard | Message::OpenCard =>{
-                self.card_opened = !self.card_opened;
+                self.state.card_open = !self.state.card_open;
+               // self.card_opened = !self.card_opened;
 
                 Command::none()
             }
@@ -182,25 +202,6 @@ impl Application for Editor {
 
     fn view(&self) -> Element<Message> {
 
-        let about: Element<Message> = if self.card_opened {
-            card(
-                Text::new("Head X"),
-                Column::new()
-                    .push(Text::new("Zombie ipsum reversus ab viral inferno, nam rick grimes malum cerebro. De carne lumbering animata corpora quaeritis. Summus brains sit, morbo vel maleficia? De apocalypsi gorger omero undead survivor dictum mauris. Hi mindless mortuis soulless creaturas, imo evil stalking monstra adventus resi dentevil vultus comedat cerebella viventium. Qui animated corpse, cricket bat max brucks terribilem incessu zomby. The voodoo sacerdos flesh eater, suscitat mortuos comedere carnem virus. Zonbi tattered for solum oculi eorum defunctis go lum cerebro. Nescio brains an Undead zombies. Sicut malus putrid voodoo horror. Nigh tofth eliv ingdead."))
-            )
-            .foot(Text::new("Foot"))
-            .style(CardStyles::Primary)
-            .on_close(Message::CloseCard)
-            .into()
-        } else {
-            Button::new(Text::new("Open card"))
-                        .on_press(Message::OpenCard)
-                        .into()
-        };
-
-        let content = Scrollable::new(about);
-
-
         let controls = row![
             action(new_icon(), "New file", Some(Message::NewFile)),
             action(
@@ -214,6 +215,7 @@ impl Application for Editor {
                 self.is_dirty.then_some(Message::SaveFile)
             ),
             horizontal_space(),
+            button(text("Show Modal")).on_press(Message::ShowModal),
             pick_list(
                 iced::Theme::ALL,
                 Some(&self.sys_theme),
@@ -221,14 +223,13 @@ impl Application for Editor {
             )
             .text_size(14)
             .padding([5, 10]),
-            content,
             pick_list(
                 highlighter::Theme::ALL,
                 Some(self.highlighter_theme),
                 Message::ThemeSelected
             )
             .text_size(14)
-            .padding([5, 10])
+            .padding([5, 10]),
         ]
         .spacing(10)
         .align_items(Alignment::Center);
@@ -254,6 +255,21 @@ impl Application for Editor {
         ]
         .spacing(10);
 
+        if self.show_modal {
+            let modal = container(
+                column![
+                    text("Hola como estas")
+                ]
+            )
+            .width(300)
+            .padding(10)
+            .style(theme::Container::Box);
+
+             let about = modal::modal::Modal::new(controls, modal)
+                .on_blur(Message::HideModal);
+             about.into()
+        } else {        
+
         column![
             controls,
             text_editor(&self.content)
@@ -277,6 +293,7 @@ impl Application for Editor {
         .spacing(10)
         .padding(10)
         .into()
+        }
     }
 
     fn theme(&self) -> Theme {
@@ -286,6 +303,12 @@ impl Application for Editor {
             Theme::GruvboxLight
         }
     }  
+}
+
+impl Editor {
+    fn hide_modal(&mut self) {
+        self.show_modal = false;
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -356,7 +379,7 @@ fn action<'a, Message: Clone + 'a>(
         .style(theme::Container::Box)
         .into()
     } else {
-        action.style(theme::Button::Secondary).into()
+        action.style(theme::Button::Destructive).into()
     }
 }
 
