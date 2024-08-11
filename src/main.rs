@@ -1,28 +1,19 @@
 // import all the needes crates for the project
-use iced::{executor, widget, window, Element, Length};
 use iced::highlighter::{self, Highlighter};
 use iced::keyboard;
 use iced::theme::{self, Theme};
 use iced::widget::{
     button, column, container, horizontal_space, pick_list, row, text, text_editor, tooltip,
 };
-use iced::{
-    Alignment, Font,
-    Subscription,
-};
-use iced::{
-    Application, Command, Settings,
-};
-
+use iced::{executor, widget, window, Element, Length};
+use iced::{Alignment, Font, Subscription};
+use iced::{Application, Command, Settings};
 
 mod modal;
 /// The `mod modal;` statement in the Rust code is used to declare a module named `modal`. This
 /// statement tells the Rust compiler to look for a file named `modal.rs` or `modal/mod.rs` and treat
 /// its contents as part of the `modal` module. This allows for organizing code into separate modules
 /// and files, making the codebase more structured and manageable.
-
-
-
 // use std::ffi;
 
 // std modules that help as interact with the system for reading and writing
@@ -30,19 +21,15 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-
-
-
 /// The main function initializes an Editor with specific settings in a Rust program.
 pub fn main() -> iced::Result {
     Editor::run(Settings {
         fonts: vec![include_bytes!("../fonts/icons.ttf").as_slice().into()],
         default_font: Font::MONOSPACE,
         window: window::Settings {
-            size: iced::Size::new(800.0, 700.0), 
+            size: iced::Size::new(800.0, 700.0),
             resizable: (true),
             ..window::Settings::default()
-
         },
         ..Settings::default()
     })
@@ -72,9 +59,9 @@ enum Message {
 }
 /// The `Editor` struct in Rust represents a text editor with various properties such as file path,
 /// content, themes, loading status, dirty status, state, and modal visibility.
-/// 
+///
 /// Properties:
-/// 
+///
 /// * `file`: The `file` property in the `Editor` struct is an optional `PathBuf` type, which represents
 /// the path to the file being edited in the editor. It can be `Some(path)` if a file is open or `None`
 /// if no file is currently being edited.
@@ -112,9 +99,9 @@ struct Editor {
     show_modal: bool,
 }
 /// The `State` struct represents a state with a boolean flag indicating whether a card is open.
-/// 
+///
 /// Properties:
-/// 
+///
 /// * `card_open`: The `card_open` property in the `State` struct represents whether a card is currently
 /// open or not. It is a boolean value that is `true` if the card is open and `false` if the card is
 /// closed.
@@ -124,23 +111,22 @@ struct State {
     card_open: bool,
 }
 
-
 impl Application for Editor {
-/// The above code in Rust is defining type aliases for `Message`, `Theme`, `Executor`, and `Flags`. It
-/// is also specifying that the `Executor` type is using the default implementation from the `executor`
-/// module. The `Flags` type is defined as an empty tuple `()`.
+    /// The above code in Rust is defining type aliases for `Message`, `Theme`, `Executor`, and `Flags`. It
+    /// is also specifying that the `Executor` type is using the default implementation from the `executor`
+    /// module. The `Flags` type is defined as an empty tuple `()`.
     type Message = Message;
     type Theme = Theme;
     type Executor = executor::Default;
     type Flags = ();
 
-/// The function `new` initializes a struct with default values and performs a file loading operation.
-/// 
-/// Arguments:
-/// 
-/// * `_flags`: The `_flags` parameter in the `new` function appears to be of type `Self::Flags`. This
-/// suggests that it is a associated type within the context of the struct or enum that contains this
-/// function. The actual definition of `Self::Flags` would be found in the same scope as the
+    /// The function `new` initializes a struct with default values and performs a file loading operation.
+    ///
+    /// Arguments:
+    ///
+    /// * `_flags`: The `_flags` parameter in the `new` function appears to be of type `Self::Flags`. This
+    /// suggests that it is a associated type within the context of the struct or enum that contains this
+    /// function. The actual definition of `Self::Flags` would be found in the same scope as the
     fn new(_flags: Self::Flags) -> (Self, Command<Message>) {
         (
             Self {
@@ -150,34 +136,33 @@ impl Application for Editor {
                 sys_theme: iced::Theme::KanagawaDragon,
                 is_loading: true,
                 is_dirty: false,
-                state: State{ card_open: false },
+                state: State { card_open: false },
                 show_modal: true,
-
             },
-
-            Command::batch(vec![
-                Command::perform(load_file(default_file()), Message::FileOpened),
-                ])
-         )
+            Command::batch(vec![Command::perform(
+                load_file(default_file()),
+                Message::FileOpened,
+            )]),
+        )
     }
 
     fn title(&self) -> String {
         String::from("Editor - Iced")
     }
 
-/// The `update` function in Rust handles various message types to update the state of a program, such
-/// as showing or hiding modals, toggling card visibility, selecting themes, and managing file
-/// operations.
-/// 
-/// Arguments:
-/// 
-/// * `message`: The `message` parameter in the `update` function represents the message that is being
-/// sent to update the state of the application. The function matches the message against different
-/// variants of the `Message` enum and performs corresponding actions based on the message received.
-/// 
-/// Returns:
-/// 
-/// The `update` function returns a `Command<Message>` based on the `message` received.
+    /// The `update` function in Rust handles various message types to update the state of a program, such
+    /// as showing or hiding modals, toggling card visibility, selecting themes, and managing file
+    /// operations.
+    ///
+    /// Arguments:
+    ///
+    /// * `message`: The `message` parameter in the `update` function represents the message that is being
+    /// sent to update the state of the application. The function matches the message against different
+    /// variants of the `Message` enum and performs corresponding actions based on the message received.
+    ///
+    /// Returns:
+    ///
+    /// The `update` function returns a `Command<Message>` based on the `message` received.
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             Message::ShowModal => {
@@ -189,9 +174,9 @@ impl Application for Editor {
                 Command::none()
             }
 
-            Message::CloseCard | Message::OpenCard =>{
+            Message::CloseCard | Message::OpenCard => {
                 self.state.card_open = !self.state.card_open;
-               // self.card_opened = !self.card_opened;
+                // self.card_opened = !self.card_opened;
 
                 Command::none()
             }
@@ -263,38 +248,34 @@ impl Application for Editor {
 
                 Command::none()
             }
-
         }
     }
 
-/// The function `subscription` listens for key presses and triggers a message to save a file when the
-/// "s" key is pressed with the command modifier.
-/// 
-/// Returns:
-/// 
-/// The `subscription` function returns a subscription to keyboard events that listens for the "s" key
-/// press with the command key modifier held down. If this specific key combination is detected, it will
-/// return a `Message::SaveFile`, otherwise it will return `None`.
+    /// The function `subscription` listens for key presses and triggers a message to save a file when the
+    /// "s" key is pressed with the command modifier.
+    ///
+    /// Returns:
+    ///
+    /// The `subscription` function returns a subscription to keyboard events that listens for the "s" key
+    /// press with the command key modifier held down. If this specific key combination is detected, it will
+    /// return a `Message::SaveFile`, otherwise it will return `None`.
     fn subscription(&self) -> Subscription<Message> {
         keyboard::on_key_press(|key, modifiers| match key.as_ref() {
-            keyboard::Key::Character("s") if modifiers.command() => {
-                Some(Message::SaveFile)
-            }
+            keyboard::Key::Character("s") if modifiers.command() => Some(Message::SaveFile),
             _ => None,
         })
     }
 
- /// The function `view` in Rust defines a user interface layout with controls, a text editor, and
- /// status information, including the ability to show a modal dialog.
- /// 
- /// Returns:
- /// 
- /// The `view` function is returning an `Element<Message>`. The content of the `Element<Message>` being
- /// returned consists of a user interface layout with various components such as controls, a text
- /// editor, and status information. If the `show_modal` flag is set to true, a modal dialog is
- /// displayed on top of the main content.
+    /// The function `view` in Rust defines a user interface layout with controls, a text editor, and
+    /// status information, including the ability to show a modal dialog.
+    ///
+    /// Returns:
+    ///
+    /// The `view` function is returning an `Element<Message>`. The content of the `Element<Message>` being
+    /// returned consists of a user interface layout with various components such as controls, a text
+    /// editor, and status information. If the `show_modal` flag is set to true, a modal dialog is
+    /// displayed on top of the main content.
     fn view(&self) -> Element<Message> {
-
         let controls = row![
             action(new_icon(), "New file", Some(Message::NewFile)),
             action(
@@ -326,8 +307,8 @@ impl Application for Editor {
         ]
         .spacing(10)
         .align_items(Alignment::Center);
-        
-    let status = row![
+
+        let status = row![
             text(if let Some(path) = &self.file {
                 let path = path.display().to_string();
 
@@ -348,42 +329,32 @@ impl Application for Editor {
         ]
         .spacing(10);
 
-        let mwili =             text_editor(&self.content)
-                .height(Length::Fill)
-                .on_action(Message::ActionPerformed)
-                .highlight::<Highlighter>(
-                    highlighter::Settings {
-                        theme: self.highlighter_theme,
-                        extension: self
-                            .file
-                            .as_deref()
-                            .and_then(Path::extension)
-                            .and_then(std::ffi::OsStr::to_str)
-                            .map(str::to_string)
-                            .unwrap_or(String::from("rs")),
-                    },
-                    |highlight, _theme| highlight.to_format()
-                );
-        
-let full =         column![
-            controls,
-            mwili,
-            status,
-        ]
-        .spacing(10)
-        .padding(10);
+        let mwili = text_editor(&self.content)
+            .height(Length::Fill)
+            .on_action(Message::ActionPerformed)
+            .highlight::<Highlighter>(
+                highlighter::Settings {
+                    theme: self.highlighter_theme,
+                    extension: self
+                        .file
+                        .as_deref()
+                        .and_then(Path::extension)
+                        .and_then(std::ffi::OsStr::to_str)
+                        .map(str::to_string)
+                        .unwrap_or(String::from("rs")),
+                },
+                |highlight, _theme| highlight.to_format(),
+            );
 
-let content = container(
-full,
-);
+        let full = column![controls, mwili, status,].spacing(10).padding(10);
+
+        let content = container(full);
 
         if self.show_modal {
-            let modal = container(
-                text("bonjour mon ami , je suis adrian , bienvenue ")
-            )
-            .width(300)
-            .padding(10)
-            .style(theme::Container::Box);
+            let modal = container(text("bonjour mon ami , je suis adrian , bienvenue "))
+                .width(300)
+                .padding(10)
+                .style(theme::Container::Box);
 
             modal::modal::Modal::new(content, modal)
                 .on_blur(Message::HideModal)
@@ -391,15 +362,14 @@ full,
         } else {
             content.into()
         }
-    
     }
-/// The `theme` function returns the system theme if the highlighter theme is dark, otherwise it returns
-/// the GruvboxLight theme.
-/// 
-/// Returns:
-/// 
-/// The `theme` function returns either a clone of `self.sys_theme` if the `highlighter_theme` is dark,
-/// or it returns the `Theme::GruvboxLight` if the `highlighter_theme` is not dark.
+    /// The `theme` function returns the system theme if the highlighter theme is dark, otherwise it returns
+    /// the GruvboxLight theme.
+    ///
+    /// Returns:
+    ///
+    /// The `theme` function returns either a clone of `self.sys_theme` if the `highlighter_theme` is dark,
+    /// or it returns the `Theme::GruvboxLight` if the `highlighter_theme` is not dark.
 
     fn theme(&self) -> Theme {
         if self.highlighter_theme.is_dark() {
@@ -407,9 +377,8 @@ full,
         } else {
             Theme::GruvboxLight
         }
-    }  
+    }
 }
-
 
 /// The above code is implementing a method `hide_modal` for a struct `Editor`. This method sets the
 /// `show_modal` field of the `Editor` struct to `false`, effectively hiding the modal in the user
@@ -432,9 +401,9 @@ pub enum Error {
 
 /// The function `default_file` returns a `PathBuf` representing the default file path for a Rust
 /// project's main.rs file.
-/// 
+///
 /// Returns:
-/// 
+///
 /// A `PathBuf` object representing the path to the `main.rs` file within the `src` directory of the
 /// Cargo project where this function is being called.
 fn default_file() -> PathBuf {
@@ -443,9 +412,9 @@ fn default_file() -> PathBuf {
 
 /// The function `open_file` asynchronously opens a text file using a file dialog and loads its
 /// contents.
-/// 
+///
 /// Returns:
-/// 
+///
 /// The `open_file` function returns a `Result` containing a tuple with two elements:
 /// 1. `PathBuf` - representing the path of the picked file.
 /// 2. `Arc<String>` - an `Arc` smart pointer to a `String` containing the content of the file.
@@ -461,15 +430,15 @@ async fn open_file() -> Result<(PathBuf, Arc<String>), Error> {
 
 /// The `load_file` function in Rust asynchronously reads the contents of a file at the specified path
 /// and returns a tuple containing the path and the file contents wrapped in an `Arc`.
-/// 
+///
 /// Arguments:
-/// 
+///
 /// * `path`: The `path` parameter in the `load_file` function is of type `PathBuf`, which represents a
 /// path to a file or directory in the file system. It is used to specify the location of the file that
 /// needs to be loaded and read.
-/// 
+///
 /// Returns:
-/// 
+///
 /// The function `load_file` returns a `Result` containing a tuple with the file path (`PathBuf`) and
 /// the file contents (`Arc<String>`), or an `Error` if there was an issue reading the file.
 async fn load_file(path: PathBuf) -> Result<(PathBuf, Arc<String>), Error> {
@@ -483,25 +452,22 @@ async fn load_file(path: PathBuf) -> Result<(PathBuf, Arc<String>), Error> {
 
 /// The `save_file` function in Rust asynchronously saves a file with specified contents to a given path
 /// or through a file dialog if no path is provided.
-/// 
+///
 /// Arguments:
-/// 
+///
 /// * `path`: The `path` parameter in the `save_file` function is an optional `PathBuf` type, which
 /// represents the path to the file where the contents will be saved. It can either contain a valid path
 /// or be `None`, in which case a file dialog will be opened to allow the user
 /// * `contents`: The `contents` parameter in the `save_file` function represents the text content that
 /// you want to write to a file. It is of type `String`, which means it is a sequence of characters or
 /// text data that you want to save to the file specified by the `path` parameter.
-/// 
+///
 /// Returns:
-/// 
+///
 /// The `save_file` function returns a `Result` containing either a `PathBuf` if the file was
 /// successfully saved, or an `Error` if any errors occurred during the process.
 
-async fn save_file(
-    path: Option<PathBuf>,
-    contents: String,
-) -> Result<PathBuf, Error> {
+async fn save_file(path: Option<PathBuf>, contents: String) -> Result<PathBuf, Error> {
     let path = if let Some(path) = path {
         path
     } else {
@@ -521,9 +487,9 @@ async fn save_file(
     Ok(path)
 }
 /// The function `action` creates a button element with optional tooltip functionality in Rust.
-/// 
+///
 /// Arguments:
-/// 
+///
 /// * `content`: The `content` parameter is of type `impl Into<Element<'a, Message>>`, which means it
 /// can accept any value that can be converted into an `Element<'a, Message>`. This parameter is used to
 /// define the content of the action, such as text or an icon, that will
@@ -532,9 +498,9 @@ async fn save_file(
 /// * `on_press`: The `on_press` parameter in the `action` function is an optional message that will be
 /// triggered when the button is pressed. If a message is provided, the button will have a tooltip
 /// attached to it, displaying the `label` text. If no message is provided, the button will have a
-/// 
+///
 /// Returns:
-/// 
+///
 /// The `action` function returns an `Element` that represents a button with optional tooltip
 /// functionality. If the `on_press` parameter is provided, the button will have a tooltip with the
 /// specified label and position. If the `on_press` parameter is not provided, the button will have a
@@ -561,9 +527,9 @@ fn action<'a, Message: Clone + 'a>(
 }
 
 /// The code defines functions to create icons with specific Unicode codepoints in Rust.
-/// 
+///
 /// Returns:
-/// 
+///
 /// An Element containing an icon with the specified Unicode codepoint is being returned. The icon is
 /// styled using a specific font named "editor-icons".
 fn new_icon<'a, Message>() -> Element<'a, Message> {
@@ -580,14 +546,14 @@ fn open_icon<'a, Message>() -> Element<'a, Message> {
 
 /// The function `icon` in Rust takes a Unicode codepoint as input and returns an Element with the
 /// specified codepoint using a specific font named "editor-icons".
-/// 
+///
 /// Arguments:
-/// 
+///
 /// * `codepoint`: The `codepoint` parameter is a Unicode code point represented as a `char` type. It is
 /// used to specify the specific character or icon that you want to display using the `icon` function.
-/// 
+///
 /// Returns:
-/// 
+///
 /// The `icon` function is returning an `Element` containing a text element with the specified
 /// `codepoint` character rendered using the `ICON_FONT` font.
 fn icon<'a, Message>(codepoint: char) -> Element<'a, Message> {
