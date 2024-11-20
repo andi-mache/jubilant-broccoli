@@ -22,10 +22,10 @@ jobs:
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
 
-          - build: macos
-            os: macos-latest
-            target: x86_64-apple-darwin
-
+            #   - build: macos
+            #os: macos-latest
+            #target: x86_64-apple-darwin
+            #- build: windows
     steps:
       - name: Checkout
         uses: actions/checkout@v3
