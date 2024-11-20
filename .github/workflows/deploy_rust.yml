@@ -1,47 +1,77 @@
-name: test rust release action
+name: Deploy
+
 on:
   push:
     tags:
       - "v*"
+
+permissions:
+  contents: write
+
 jobs:
-  basic_test:
+  build-and-upload:
+    name: Build and upload
     runs-on: ${{ matrix.os }}
+
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # You can add more, for any target you'd like!
+        include:
+          - build: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+
+          - build: macos
+            os: macos-latest
+            target: x86_64-apple-darwin
+
     steps:
-      - uses: actions/checkout@v4
-      - name: test build rust project
-        uses: lxl66566/rust-simple-release@main
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Get the release version from the tag
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Install Rust
+        # Or @nightly if you want
+        uses: dtolnay/rust-toolchain@stable
+        # Arguments to pass in
         with:
-          # Targets to compile, seperated by comma (allow space)
-          # Support Linux, Windows and Darwin
-          targets: aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl, x86_64-pc-windows-msvc, x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu, aarch64-apple-darwin, x86_64-apple-darwin
+          # Make Rust compile to our target (defined in the matrix)
+          targets: ${{ matrix.target }}
 
-          # Choose one package to build. If not set, it will build first package in workspace.
-          #package: openssl-test
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --verbose --release --target ${{ matrix.target }}
 
-          # whether to build lib in the package. If the package has both lib and bin targets, you need to set this option to build lib, otherwise the lib will be ignored, only build bins.
-          # If the package has lib target and no bin targets, it will build lib by default.
-          # If the package has no lib target, set this option to true will cause an error.
-          lib: false
+      - name: Build archive
+        shell: bash
+        run: |
+          # Replace with the name of your binary
+          binary_name="editor"
 
-          # Choose bins to build, seperated by comma. If not set, it will build all bins in the package.
-          # This `bins` option should be a subset of target bins in `Cargo.toml`.
-          #bins: my-action-test, my-action-test2
+          dirname="$binary_name-${{ env.VERSION }}-${{ matrix.target }}"
+          mkdir "$dirname"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            mv "target/${{ matrix.target }}/release/$binary_name.exe" "$dirname"
+          else
+            mv "target/${{ matrix.target }}/release/$binary_name" "$dirname"
+          fi
 
-          
-          # Files or folders to pack into release assets, relative path seperated by comma.
-          # The files and folers will be added to the root path of archive.
-          # Build outputs (bins and lib) will automatically added to the archive, you don't need to add them twice.
-          files_to_pack: README.md #, LICENSE, assets
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            7z a "$dirname.zip" "$dirname"
+            echo "ASSET=$dirname.zip" >> $GITHUB_ENV
+          else
+            tar -czf "$dirname.tar.gz" "$dirname"
+            echo "ASSET=$dirname.tar.gz" >> $GITHUB_ENV
+          fi
 
-          # release create options, see https://cli.github.com/manual/gh_release_create
-          release_options: --draft --title 123
-
-          # GITHUB TOKEN, **REQUIRED**
-          token: ${{ secrets.GH_TOKEN }}
-
-        env:
-          # debug level, print more logs
-          debug: 1
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ env.ASSET }}
