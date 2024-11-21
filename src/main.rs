@@ -25,17 +25,18 @@ use std::sync::Arc;
 pub fn main() -> iced::Result {
     Editor::run(Settings {
         fonts: vec![include_bytes!("../fonts/icons.ttf").as_slice().into()],
-        default_font: Font::MONOSPACE,
+        default_font: Font::DEFAULT,
         window: window::Settings {
             size: iced::Size::new(800.0, 700.0),
             resizable: (true),
+            min_size: Some(iced::Size::new(600., 500.)),
             ..window::Settings::default()
         },
         ..Settings::default()
     })
 }
 
-/// The above code is defining an enum named `Message` in Rust. This enum has several variants
+/// The  code is defining an enum named `Message` in Rust. This enum has several variants
 /// representing different types of messages that can be sent or received in a program. Each variant can
 /// hold associated data of different types. Some of the variants include `ActionPerformed`,
 /// `ThemeSelected`, `NewFile`, `OpenFile`, `FileOpened`, `SaveFile`, `FileSaved`, `CloseCard`,
@@ -52,10 +53,9 @@ enum Message {
     FileOpened(Result<(PathBuf, Arc<String>), Error>),
     SaveFile,
     FileSaved(Result<PathBuf, Error>),
-    CloseCard,
-    OpenCard,
-    ShowModal,
-    HideModal,
+
+    ShowAboutModal,
+    HideAboutModal,
 }
 /// The `Editor` struct in Rust represents a text editor with various properties such as file path,
 /// content, themes, loading status, dirty status, state, and modal visibility.
@@ -95,20 +95,7 @@ struct Editor {
     sys_theme: Theme,
     is_loading: bool,
     is_dirty: bool,
-    state: State,
     show_modal: bool,
-}
-/// The `State` struct represents a state with a boolean flag indicating whether a card is open.
-///
-/// Properties:
-///
-/// * `card_open`: The `card_open` property in the `State` struct represents whether a card is currently
-/// open or not. It is a boolean value that is `true` if the card is open and `false` if the card is
-/// closed.
-
-#[derive(Debug, Clone)]
-struct State {
-    card_open: bool,
 }
 
 impl Application for Editor {
@@ -132,12 +119,11 @@ impl Application for Editor {
             Self {
                 file: None,
                 content: text_editor::Content::new(),
-                highlighter_theme: highlighter::Theme::Base16Mocha,
-                sys_theme: iced::Theme::KanagawaDragon,
+                highlighter_theme: highlighter::Theme::SolarizedDark,
+                sys_theme: iced::Theme::TokyoNightStorm,
                 is_loading: true,
                 is_dirty: false,
-                state: State { card_open: false },
-                show_modal: true,
+                show_modal: false,
             },
             Command::batch(vec![Command::perform(
                 load_file(default_file()),
@@ -165,21 +151,16 @@ impl Application for Editor {
     /// The `update` function returns a `Command<Message>` based on the `message` received.
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
-            Message::ShowModal => {
+            Message::ShowAboutModal => {
                 self.show_modal = true;
                 widget::focus_next()
             }
-            Message::HideModal => {
+            Message::HideAboutModal => {
                 self.hide_modal();
                 Command::none()
             }
 
-            Message::CloseCard | Message::OpenCard => {
-                self.state.card_open = !self.state.card_open;
-                // self.card_opened = !self.card_opened;
 
-                Command::none()
-            }
 
             Message::ActionPerformed(action) => {
                 self.is_dirty = self.is_dirty || action.is_edit();
@@ -276,6 +257,7 @@ impl Application for Editor {
     /// editor, and status information. If the `show_modal` flag is set to true, a modal dialog is
     /// displayed on top of the main content.
     fn view(&self) -> Element<Message> {
+        
         let controls = row![
             action(new_icon(), "New file", Some(Message::NewFile)),
             action(
@@ -289,7 +271,11 @@ impl Application for Editor {
                 self.is_dirty.then_some(Message::SaveFile)
             ),
             horizontal_space(),
-            button(text("aboute moi")).on_press(Message::ShowModal),
+            action(
+                save_icon(),
+                "aboute moi",
+                Some(Message::ShowAboutModal)
+            ),
             pick_list(
                 iced::Theme::ALL,
                 Some(&self.sys_theme),
@@ -333,6 +319,7 @@ impl Application for Editor {
             .height(Length::Fill)
             .on_action(Message::ActionPerformed)
             .highlight::<Highlighter>(
+
                 highlighter::Settings {
                     theme: self.highlighter_theme,
                     extension: self
@@ -345,8 +332,15 @@ impl Application for Editor {
                 },
                 |highlight, _theme| highlight.to_format(),
             );
+        
 
-        let full = column![controls, mwili, status,].spacing(10).padding(10);
+        let full = column![
+                    controls, 
+                    mwili, 
+                    status,
+                    ]
+                    .spacing(10)
+                    .padding(10);
 
         let content = container(full);
 
@@ -357,7 +351,7 @@ impl Application for Editor {
                 .style(theme::Container::Box);
 
             modal::modal::Modal::new(content, modal)
-                .on_blur(Message::HideModal)
+                .on_blur(Message::HideAboutModal)
                 .into()
         } else {
             content.into()
@@ -420,6 +414,7 @@ fn default_file() -> PathBuf {
 /// 2. `Arc<String>` - an `Arc` smart pointer to a `String` containing the content of the file.
 async fn open_file() -> Result<(PathBuf, Arc<String>), Error> {
     let picked_file = rfd::AsyncFileDialog::new()
+    
         .set_title("Open a text file...")
         .pick_file()
         .await
@@ -443,6 +438,7 @@ async fn open_file() -> Result<(PathBuf, Arc<String>), Error> {
 /// the file contents (`Arc<String>`), or an `Error` if there was an issue reading the file.
 async fn load_file(path: PathBuf) -> Result<(PathBuf, Arc<String>), Error> {
     let contents = tokio::fs::read_to_string(&path)
+
         .await
         .map(Arc::new)
         .map_err(|error| Error::IoError(error.kind()))?;
@@ -472,6 +468,7 @@ async fn save_file(path: Option<PathBuf>, contents: String) -> Result<PathBuf, E
         path
     } else {
         rfd::AsyncFileDialog::new()
+        .set_can_create_directories(true)
             .save_file()
             .await
             .as_ref()
@@ -522,7 +519,7 @@ fn action<'a, Message: Clone + 'a>(
         .style(theme::Container::Box)
         .into()
     } else {
-        action.style(theme::Button::Destructive).into()
+        action.style(theme::Button::Secondary).into()
     }
 }
 

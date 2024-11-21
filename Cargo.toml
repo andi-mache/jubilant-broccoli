@@ -1,7 +1,7 @@
 [package]
 name = "iced-project"
 version = "0.1.0"
-authors = ["Héctor Ramón Jiménez <hector@hecrj.dev>"]
+authors = ["Adrian Mache"]
 edition = "2021"
 publish = false
 
