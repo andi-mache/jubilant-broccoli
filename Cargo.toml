@@ -1,14 +1,15 @@
 [package]
 name = "iced-project"
 version = "0.1.0"
-authors = ["Héctor Ramón Jiménez <hector@hecrj.dev>"]
+authors = ["Adrian Mache"]
 edition = "2021"
 publish = false
 
 [dependencies]
-iced = {git = "https://github.com/iced-rs/iced.git", rev = "refs/tags/text-editor" ,features = ["highlighter", "tokio", "debug"]}
+iced = {version = "0.12.1", features = ["highlighter", "tokio", "debug" ,"advanced"]}
 rfd = "0.14.1"
 tokio = { version = "1.39.2", features = ["fs"] }
+
 
 
 
