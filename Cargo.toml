@@ -6,9 +6,9 @@ edition = "2021"
 publish = false
 
 [dependencies]
-iced = {version = "0.12.1", features = ["highlighter", "tokio", "debug" ,"advanced"]}
-rfd = "0.14.1"
-tokio = { version = "1.39.2", features = ["fs"] }
+iced = {version = "0.13.1", features = ["highlighter", "tokio", "debug" ,"advanced"]}
+rfd = "0.15.1"
+tokio = { version = "1.41.1", features = ["fs"] }
 
 
 
