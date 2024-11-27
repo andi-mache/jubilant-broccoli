@@ -1,18 +1,13 @@
 use iced::highlighter;
 use iced::keyboard;
+use iced::widget::scrollable;
+use iced::widget::Button;
 use iced::widget::Column;
 use iced::widget::{
-    self, button, column, container, horizontal_space, pick_list, row, text,
-    text_editor, toggler, tooltip,
+    self, button, column, container, horizontal_space, pick_list, row, text, text_editor, toggler,
+    tooltip,
 };
 use iced::{Center, Element, Fill, Font, Task, Theme};
-use iced::widget::{
-     checkbox, radio, 
-    scrollable, slider,  text_input, vertical_space,
-};
-use iced::widget::{Button,  Container, Slider};
-use iced::{ Color, Pixels};
-
 
 use std::ffi;
 use std::io;
@@ -65,10 +60,7 @@ impl Editor {
             },
             Task::batch([
                 Task::perform(
-                    load_file(format!(
-                        "{}/src/main.rs",
-                        env!("CARGO_MANIFEST_DIR")
-                    )),
+                    load_file(format!("{}/src/main.rs", env!("CARGO_MANIFEST_DIR"))),
                     Message::FileOpened,
                 ),
                 widget::focus_next(),
@@ -78,7 +70,7 @@ impl Editor {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-                        Message::BackPressed => {
+            Message::BackPressed => {
                 if let Some(screen) = self.screen.previous() {
                     self.screen = screen;
                 }
@@ -163,17 +155,17 @@ impl Editor {
     }
 
     fn view(&self) -> Element<Message> {
-let controls =
-            row![]
-                .push_maybe(self.screen.previous().is_some().then(|| {
-                    padded_button("Back")
-                        .on_press(Message::BackPressed)
-                        .style(button::secondary)
-                }))
-                .push(horizontal_space())
-                .push_maybe(self.can_continue().then(|| {
-                    padded_button("Next").on_press(Message::NextPressed)
-                }));
+        let controls = row![]
+            .push_maybe(self.screen.previous().is_some().then(|| {
+                padded_button("Back")
+                    .on_press(Message::BackPressed)
+                    .style(button::secondary)
+            }))
+            .push(horizontal_space())
+            .push_maybe(
+                self.can_continue()
+                    .then(|| padded_button("Next").on_press(Message::NextPressed)),
+            );
 
         let screen = match self.screen {
             Screen::Welcome => self.welcome(),
@@ -182,17 +174,12 @@ let controls =
         };
 
         let content: Element<_> = column![screen, controls,]
-            .max_width(540)
+            .width(Fill)
             .spacing(20)
             .padding(20)
             .into();
 
-        let scrollable = scrollable(
-            container(
-                content
-            )
-            .center_x(Fill),
-        );
+        let scrollable = scrollable(container(content).center_x(Fill));
 
         container(scrollable).center_y(Fill).into()
     }
@@ -203,13 +190,12 @@ let controls =
             Screen::End => false,
         }
     }
-    
+
     fn end(&self) -> Column<Message> {
         Self::container("You reached the end!")
             .push("This tour will be updated as more features are added.")
             .push("Make sure to keep an eye on it!")
     }
-
 
     fn theme(&self) -> Theme {
         if self.theme.is_dark() {
@@ -219,10 +205,8 @@ let controls =
         }
     }
 
-
-
-fn text_editor(&self) -> Column<Message> {
-           let controls = row![
+    fn text_editor(&self) -> Column<Message> {
+        let controls = row![
             action(new_icon(), "New file", Some(Message::NewFile)),
             action(
                 open_icon(),
@@ -272,7 +256,8 @@ fn text_editor(&self) -> Column<Message> {
 
         column![
             controls,
-            text_editor(&self.content).height(540)
+            text_editor(&self.content)
+                .height(540)
                 .on_action(Message::ActionPerformed)
                 .wrapping(if self.word_wrap {
                     text::Wrapping::Word
@@ -289,12 +274,8 @@ fn text_editor(&self) -> Column<Message> {
                 )
                 .key_binding(|key_press| {
                     match key_press.key.as_ref() {
-                        keyboard::Key::Character("s")
-                            if key_press.modifiers.command() =>
-                        {
-                            Some(text_editor::Binding::Custom(
-                                Message::SaveFile,
-                            ))
+                        keyboard::Key::Character("s") if key_press.modifiers.command() => {
+                            Some(text_editor::Binding::Custom(Message::SaveFile))
                         }
                         _ => text_editor::Binding::from_key_press(key_press),
                     }
@@ -303,11 +284,9 @@ fn text_editor(&self) -> Column<Message> {
         ]
         .spacing(10)
         .padding(10)
-        .into()
-}
+    }
 
-
-fn welcome(&self) -> Column<Message> {
+    fn welcome(&self) -> Column<Message> {
         Self::container("Welcome!")
             .push(
                 "This is a simple tour meant to showcase a bunch of widgets \
@@ -336,14 +315,10 @@ fn welcome(&self) -> Column<Message> {
             )
     }
 
-    
     fn container(title: &str) -> Column<'_, Message> {
         column![text(title).size(50)].spacing(20)
     }
-
-
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Screen {
@@ -353,11 +328,7 @@ enum Screen {
 }
 
 impl Screen {
-    const ALL: &'static [Self] = &[
-        Self::Welcome,
-        Self::Editor,
-        Self::End,
-    ];
+    const ALL: &'static [Self] = &[Self::Welcome, Self::Editor, Self::End];
 
     pub fn next(self) -> Option<Screen> {
         Self::ALL
@@ -407,9 +378,7 @@ async fn open_file() -> Result<(PathBuf, Arc<String>), Error> {
     load_file(picked_file).await
 }
 
-async fn load_file(
-    path: impl Into<PathBuf>,
-) -> Result<(PathBuf, Arc<String>), Error> {
+async fn load_file(path: impl Into<PathBuf>) -> Result<(PathBuf, Arc<String>), Error> {
     let path = path.into();
 
     let contents = tokio::fs::read_to_string(&path)
@@ -420,10 +389,7 @@ async fn load_file(
     Ok((path, contents))
 }
 
-async fn save_file(
-    path: Option<PathBuf>,
-    contents: String,
-) -> Result<PathBuf, Error> {
+async fn save_file(path: Option<PathBuf>, contents: String) -> Result<PathBuf, Error> {
     let path = if let Some(path) = path {
         path
     } else {
