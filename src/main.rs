@@ -1,8 +1,11 @@
 use iced::highlighter;
 use iced::keyboard;
+use iced::widget::scrollable;
+use iced::widget::Button;
+use iced::widget::Column;
 use iced::widget::{
-    self, button, column, container, horizontal_space, pick_list, row, text,
-    text_editor, toggler, tooltip,
+    self, button, column, container, horizontal_space, pick_list, row, text, text_editor, toggler,
+    tooltip,
 };
 use iced::{Center, Element, Fill, Font, Task, Theme};
 
@@ -20,6 +23,7 @@ pub fn main() -> iced::Result {
 }
 
 struct Editor {
+    screen: Screen,
     file: Option<PathBuf>,
     content: text_editor::Content,
     theme: highlighter::Theme,
@@ -30,6 +34,8 @@ struct Editor {
 
 #[derive(Debug, Clone)]
 enum Message {
+    BackPressed,
+    NextPressed,
     ActionPerformed(text_editor::Action),
     ThemeSelected(highlighter::Theme),
     WordWrapToggled(bool),
@@ -44,6 +50,7 @@ impl Editor {
     fn new() -> (Self, Task<Message>) {
         (
             Self {
+                screen: Screen::Welcome,
                 file: None,
                 content: text_editor::Content::new(),
                 theme: highlighter::Theme::SolarizedDark,
@@ -53,10 +60,7 @@ impl Editor {
             },
             Task::batch([
                 Task::perform(
-                    load_file(format!(
-                        "{}/src/main.rs",
-                        env!("CARGO_MANIFEST_DIR")
-                    )),
+                    load_file(format!("{}/src/main.rs", env!("CARGO_MANIFEST_DIR"))),
                     Message::FileOpened,
                 ),
                 widget::focus_next(),
@@ -66,6 +70,20 @@ impl Editor {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::BackPressed => {
+                if let Some(screen) = self.screen.previous() {
+                    self.screen = screen;
+                }
+
+                Task::none()
+            }
+            Message::NextPressed => {
+                if let Some(screen) = self.screen.next() {
+                    self.screen = screen;
+                }
+
+                Task::none()
+            }
             Message::ActionPerformed(action) => {
                 self.is_dirty = self.is_dirty || action.is_edit();
 
@@ -137,6 +155,57 @@ impl Editor {
     }
 
     fn view(&self) -> Element<Message> {
+        let controls = row![]
+            .push_maybe(self.screen.previous().is_some().then(|| {
+                padded_button("Back")
+                    .on_press(Message::BackPressed)
+                    .style(button::secondary)
+            }))
+            .push(horizontal_space())
+            .push_maybe(
+                self.can_continue()
+                    .then(|| padded_button("Next").on_press(Message::NextPressed)),
+            );
+
+        let screen = match self.screen {
+            Screen::Welcome => self.welcome(),
+            Screen::Editor => self.text_editor(),
+            Screen::End => self.end(),
+        };
+
+        let content: Element<_> = column![screen, controls,]
+            .width(Fill)
+            .spacing(20)
+            .padding(20)
+            .into();
+
+        let scrollable = scrollable(container(content).center_x(Fill));
+
+        container(scrollable).center_y(Fill).into()
+    }
+    fn can_continue(&self) -> bool {
+        match self.screen {
+            Screen::Welcome => true,
+            Screen::Editor => true,
+            Screen::End => false,
+        }
+    }
+
+    fn end(&self) -> Column<Message> {
+        Self::container("You reached the end!")
+            .push("This tour will be updated as more features are added.")
+            .push("Make sure to keep an eye on it!")
+    }
+
+    fn theme(&self) -> Theme {
+        if self.theme.is_dark() {
+            Theme::Dark
+        } else {
+            Theme::Light
+        }
+    }
+
+    fn text_editor(&self) -> Column<Message> {
         let controls = row![
             action(new_icon(), "New file", Some(Message::NewFile)),
             action(
@@ -188,7 +257,7 @@ impl Editor {
         column![
             controls,
             text_editor(&self.content)
-                .height(Fill)
+                .height(540)
                 .on_action(Message::ActionPerformed)
                 .wrapping(if self.word_wrap {
                     text::Wrapping::Word
@@ -205,12 +274,8 @@ impl Editor {
                 )
                 .key_binding(|key_press| {
                     match key_press.key.as_ref() {
-                        keyboard::Key::Character("s")
-                            if key_press.modifiers.command() =>
-                        {
-                            Some(text_editor::Binding::Custom(
-                                Message::SaveFile,
-                            ))
+                        keyboard::Key::Character("s") if key_press.modifiers.command() => {
+                            Some(text_editor::Binding::Custom(Message::SaveFile))
                         }
                         _ => text_editor::Binding::from_key_press(key_press),
                     }
@@ -219,14 +284,76 @@ impl Editor {
         ]
         .spacing(10)
         .padding(10)
-        .into()
     }
 
-    fn theme(&self) -> Theme {
-        if self.theme.is_dark() {
-            Theme::Dark
+    fn welcome(&self) -> Column<Message> {
+        Self::container("Welcome!")
+            .push(
+                "This is a simple tour meant to showcase a bunch of widgets \
+                 that can be easily implemented on top of Iced.",
+            )
+            .push(
+                "Iced is a cross-platform GUI library for Rust focused on \
+                 simplicity and type-safety. It is heavily inspired by Elm.",
+            )
+            .push(
+                "It was originally born as part of Coffee, an opinionated \
+                 2D game engine for Rust.",
+            )
+            .push(
+                "On native platforms, Iced provides by default a renderer \
+                 built on top of wgpu, a graphics library supporting Vulkan, \
+                 Metal, DX11, and DX12.",
+            )
+            .push(
+                "Additionally, this tour can also run on WebAssembly thanks \
+                 to dodrio, an experimental VDOM library for Rust.",
+            )
+            .push(
+                "You will need to interact with the UI in order to reach the \
+                 end!",
+            )
+    }
+
+    fn container(title: &str) -> Column<'_, Message> {
+        column![text(title).size(50)].spacing(20)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Screen {
+    Welcome,
+    Editor,
+    End,
+}
+
+impl Screen {
+    const ALL: &'static [Self] = &[Self::Welcome, Self::Editor, Self::End];
+
+    pub fn next(self) -> Option<Screen> {
+        Self::ALL
+            .get(
+                Self::ALL
+                    .iter()
+                    .copied()
+                    .position(|screen| screen == self)
+                    .expect("Screen must exist")
+                    + 1,
+            )
+            .copied()
+    }
+
+    pub fn previous(self) -> Option<Screen> {
+        let position = Self::ALL
+            .iter()
+            .copied()
+            .position(|screen| screen == self)
+            .expect("Screen must exist");
+
+        if position > 0 {
+            Some(Self::ALL[position - 1])
         } else {
-            Theme::Light
+            None
         }
     }
 }
@@ -235,6 +362,10 @@ impl Editor {
 pub enum Error {
     DialogClosed,
     IoError(io::ErrorKind),
+}
+
+fn padded_button<Message: Clone>(label: &str) -> Button<'_, Message> {
+    button(text(label)).padding([12, 24])
 }
 
 async fn open_file() -> Result<(PathBuf, Arc<String>), Error> {
@@ -247,9 +378,7 @@ async fn open_file() -> Result<(PathBuf, Arc<String>), Error> {
     load_file(picked_file).await
 }
 
-async fn load_file(
-    path: impl Into<PathBuf>,
-) -> Result<(PathBuf, Arc<String>), Error> {
+async fn load_file(path: impl Into<PathBuf>) -> Result<(PathBuf, Arc<String>), Error> {
     let path = path.into();
 
     let contents = tokio::fs::read_to_string(&path)
@@ -260,10 +389,7 @@ async fn load_file(
     Ok((path, contents))
 }
 
-async fn save_file(
-    path: Option<PathBuf>,
-    contents: String,
-) -> Result<PathBuf, Error> {
+async fn save_file(path: Option<PathBuf>, contents: String) -> Result<PathBuf, Error> {
     let path = if let Some(path) = path {
         path
     } else {
